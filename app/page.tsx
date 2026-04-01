@@ -29,7 +29,17 @@ export default function LoginPage() {
       const res = response.data;
       // Save token to localStorage or cookies
       localStorage.setItem("token", res.access_token);
-      route.push("/manager");
+      localStorage.setItem("user", JSON.stringify(res.user));
+      const role = res?.user?.role;
+      if (role === "MANAGER") {
+        route.push("/manager");
+      } else if (role === "STAFF") {
+        route.push("/staff");
+      } else if (role === "ADMIN") {
+        route.push("/admin");
+      } else {
+        route.push("/");
+      }
       // Optionally redirect or show success
       //   alert(`Welcome back, ${data.user.firstName}!`);
       // alert("Welcome back");

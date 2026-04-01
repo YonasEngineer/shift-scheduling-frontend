@@ -1,9 +1,197 @@
 "use client";
-
+import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopNav } from "./TopNav";
+import { useSchedule } from "./context/ScheduleContext";
+import { API } from "@/lib/api";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export default function DashboardPage() {
+  const {
+    selectedSchedule,
+    skills,
+    // shifts,
+    loading,
+    fetchSchedules,
+    staff,
+    fetchStaff,
+    // fetchShifts,
+  } = useSchedule();
+  console.log("see the selectedSchedule", selectedSchedule);
 
-export default function Dashboard() {
+  const [activeDay, setActiveDay] = useState<string | null>(null);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleLocation, setScheduleLocation] = useState("");
+  const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState("");
+  // const [shiftLocation, setShiftLocation] = useState("");
+  const [shiftStartDate, setShiftStartDate] = useState("");
+  const [shiftEndDate, setShiftEndDate] = useState("");
+  const [shiftSkill, setShiftSkill] = useState("");
+  const [headCount, setHeadCount] = useState("");
+
+  // const getWeekDays = () => {
+  //   if (!selectedSchedule) return [];
+
+  //   const start = new Date(selectedSchedule.weekStart);
+  //   const days = [];
+
+  //   for (let i = 0; i < 7; i++) {
+  //     const d = new Date(start);
+  //     d.setDate(start.getDate() + i);
+
+  //     const label = d
+  //       .toLocaleDateString("en-US", {
+  //         weekday: "short",
+  //         day: "numeric",
+  //       })
+  //       .toUpperCase();
+
+  //     days.push(label);
+  //   }
+
+  //   return days;
+  // };
+
+  // const days = getWeekDays();
+
+  const groupedShifts = (() => {
+    if (!selectedSchedule?.shifts) return {};
+
+    const map: Record<string, any[]> = {};
+
+    selectedSchedule.shifts.forEach((shift: any) => {
+      const key = new Date(shift.startTime)
+        .toLocaleDateString("en-US", {
+          weekday: "short",
+          day: "numeric",
+        })
+        .toUpperCase();
+
+      if (!map[key]) map[key] = [];
+      map[key].push(shift);
+    });
+
+    return map;
+  })();
+
+  const handleCreateSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const manager = JSON.parse(localStorage.getItem("user") || "{}");
+
+    try {
+      await API.post(`/schedules`, {
+        weekStart: new Date(`${scheduleDate}T00:00:00Z`).toISOString(),
+        locationId: manager.locationIds[0],
+        createdBy: manager.sub,
+      });
+
+      await fetchSchedules(); // refresh
+
+      setIsScheduleModalOpen(false);
+      setScheduleDate("");
+      console.log("[v0] Creating schedule:", {
+        scheduleDate,
+        scheduleLocation,
+      });
+      setScheduleDate("");
+      setScheduleLocation("");
+      setIsScheduleModalOpen(false);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  console.log("see the selected day", selectedDay);
+  console.log("see the selected staff", selectedStaff);
+  const manager = JSON.parse(localStorage.getItem("user") || "{}");
+
+  useEffect(() => {}, [manager]);
+
+  const handleAddShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedSchedule) {
+      console.log("No schedule selected");
+      return;
+    }
+
+    try {
+      const manager = JSON.parse(localStorage.getItem("user") || "{}");
+
+      const payload = {
+        scheduleId: selectedSchedule.id,
+        // day: selectedDay, // optional, or you can calculate exact date
+        locationId: manager.locationIds[0],
+        requiredSkillId: shiftSkill, // send skill ID, not name
+        assignedUserIds: selectedStaff,
+        startTime: new Date(`${shiftStartDate}T00:00:00Z`).toISOString(),
+        endTime: new Date(`${shiftEndDate}T00:00:00Z`).toISOString(),
+        requiredHeadcount: Number(headCount),
+        createdBy: manager.sub,
+        isPremium: isPremium,
+      };
+      console.log("seee the  shift payload", payload);
+
+      const response = await API.post("/shifts", payload);
+
+      console.log("[v0] Shift added:", response.data);
+
+      // Optionally refresh shifts
+      await fetchSchedules();
+
+      // Reset form
+      // setShiftLocation("");
+      setShiftStartDate("");
+      setShiftEndDate("");
+      setShiftSkill("");
+      setHeadCount("");
+      setIsShiftModalOpen(false);
+    } catch (error: any) {
+      console.error(
+        "Error adding shift:",
+        error.response || error.message || error,
+      );
+    }
+  };
+
+  const days = [
+    "MON 23",
+    "TUE 24",
+    "WED 25",
+    "THU 26",
+    "FRI 27",
+    "SAT 28",
+    "SUN 29",
+  ];
+
+  useEffect(() => {
+    if (!selectedSchedule?.location?.id || !shiftSkill) return;
+
+    const manager = JSON.parse(localStorage.getItem("user") || "{}");
+    console.log("see the shiftSkill", shiftSkill);
+    console.log("see the  manager.locationIds[0]", manager.locationIds[0]);
+    try {
+      fetchStaff(
+        manager.locationIds[0],
+        shiftSkill,
+        new Date(shiftStartDate).toISOString(),
+        new Date(shiftEndDate).toISOString(),
+      );
+    } catch (error) {
+      console.log("see the error", error);
+    }
+  }, [shiftSkill, isShiftModalOpen]);
+
+  const formatTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
@@ -13,26 +201,277 @@ export default function Dashboard() {
           {/* Page Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">
-              Harbor Schedule
+              {selectedSchedule?.location?.name || "Schedule"}
             </h1>
             <p className="text-gray-600 mt-1">
-              Week of October 23 - October 29, 2023
+              Week of{" "}
+              {selectedSchedule
+                ? new Date(selectedSchedule.weekStart).toLocaleDateString(
+                    "en-US",
+                    {
+                      month: "long",
+                      day: "numeric",
+                    },
+                  ) +
+                  " - " +
+                  new Date(
+                    new Date(selectedSchedule.weekStart).setDate(
+                      new Date(selectedSchedule.weekStart).getDate() + 6,
+                    ),
+                  ).toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                  })
+                : ""}
             </p>
           </div>
 
           {/* Status and Action Buttons */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-teal-100 text-teal-700 text-sm font-medium">
-                <span className="w-2 h-2 bg-teal-500 rounded-full"></span>
-                PUBLISHED
+              <div
+                className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                  selectedSchedule?.status === "PUBLISHED"
+                    ? "bg-teal-100 text-teal-700"
+                    : "bg-gray-200 text-gray-700"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                {selectedSchedule?.status || "DRAFT"}
               </div>
             </div>
-            <button className="px-6 py-2 bg-teal-900 text-white rounded-lg font-medium hover:bg-teal-800 flex items-center gap-2">
-              <span>▶</span>
-              Publish Schedule
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsScheduleModalOpen(true)}
+                className="px-6 py-2 bg-gray-200 text-gray-900 rounded-lg font-medium hover:bg-gray-300 flex items-center gap-2"
+              >
+                <span>+</span>
+                Create Schedule
+              </button>
+              <button className="px-6 py-2 bg-teal-900 text-white rounded-lg font-medium hover:bg-teal-800 flex items-center gap-2">
+                <span>▶</span>
+                Publish Schedule
+              </button>
+            </div>
           </div>
+
+          {/* Create Schedule Modal */}
+          {isScheduleModalOpen && (
+            <div className="fixed inset-0 bg-black/60 bg-opacity-50/20 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  Create Schedule
+                </h2>
+
+                <form onSubmit={handleCreateSchedule} className="space-y-5">
+                  {/* Date Field */}
+                  <div>
+                    <label
+                      htmlFor="scheduleDate"
+                      className="block text-sm font-semibold text-gray-950 mb-2"
+                    >
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      id="scheduleDate"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg 
+             text-gray-900 bg-white
+             focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsScheduleModalOpen(false)}
+                      className="flex-1 px-4 py-2 bg-gray-200 text-gray-900 rounded-lg font-medium hover:bg-gray-300 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 px-4 py-2 bg-teal-900 text-white rounded-lg font-medium hover:bg-teal-800 transition"
+                    >
+                      Create
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Add Shift Modal */}
+          {isShiftModalOpen && (
+            <div className="fixed inset-0 bg-black/60 bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Add Shift
+                </h2>
+                <p className="text-gray-600 mb-6">Day: {selectedDay}</p>
+
+                <form onSubmit={handleAddShift} className="space-y-5">
+                  {/* Location Field */}
+
+                  {/* Start Date/Time Field */}
+                  <div>
+                    <label
+                      htmlFor="shiftStartDate"
+                      className="block text-sm font-semibold text-gray-900 mb-2"
+                    >
+                      Start Date & Time
+                    </label>
+                    <input
+                      type="date"
+                      id="shiftStartDate"
+                      value={shiftStartDate}
+                      onChange={(e) => setShiftStartDate(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg 
+             text-gray-900 bg-white
+             focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  {/* End Date/Time Field */}
+                  <div>
+                    <label
+                      htmlFor="shiftEndDate"
+                      className="block text-sm font-semibold text-gray-900 mb-2"
+                    >
+                      End Date & Time
+                    </label>
+                    <input
+                      type="date"
+                      id="shiftEndDate"
+                      value={shiftEndDate}
+                      onChange={(e) => setShiftEndDate(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg 
+             text-gray-900 bg-white
+             focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+                  {/* Head Count Field */}
+                  <div>
+                    <label
+                      htmlFor="headCount"
+                      className="block text-sm font-semibold text-gray-900 mb-2"
+                    >
+                      Head Count (Number of Staff)
+                    </label>
+                    <input
+                      type="number"
+                      id="headCount"
+                      value={headCount}
+                      onChange={(e) => setHeadCount(e.target.value)}
+                      required
+                      min="1"
+                      max="50"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg 
+             text-gray-900 bg-white
+             focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+                  {/* Skill Field */}
+                  <div>
+                    <label
+                      htmlFor="shiftSkill"
+                      className="block text-sm font-semibold text-gray-900 mb-2"
+                    >
+                      Skill / Role
+                    </label>
+                    <select
+                      id="shiftSkill"
+                      value={shiftSkill}
+                      onChange={(e) => setShiftSkill(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg 
+             text-gray-900 bg-white
+             focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="">Select a skill</option>
+                      {skills?.map((skill: any) => (
+                        <option key={skill.id} value={skill.id}>
+                          {skill.name.charAt(0).toUpperCase() +
+                            skill.name.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {staff?.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                      <p className="text-sm font-semibold mb-2 text-gray-900">
+                        Available Staff
+                      </p>
+
+                      {staff.map((s: any) => (
+                        <label
+                          key={s.id}
+                          className="flex items-center gap-2 py-1"
+                        >
+                          <input
+                            type="checkbox"
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedStaff((prev) => [...prev, s.id]);
+                              } else {
+                                setSelectedStaff((prev) =>
+                                  prev.filter((id) => id !== s.id),
+                                );
+                              }
+                            }}
+                          />
+                          <span className="text-sm text-gray-800">
+                            {s.firstName} {s.lastName}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Premium Shift Field */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="isPremium"
+                      checked={isPremium}
+                      onChange={(e) => setIsPremium(e.target.checked)}
+                      className="h-4 w-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                    />
+                    <label
+                      htmlFor="isPremium"
+                      className="text-sm text-gray-900"
+                    >
+                      Premium Shift
+                    </label>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsShiftModalOpen(false)}
+                      className="flex-1 px-4 py-2 bg-gray-200 text-gray-900 rounded-lg font-medium hover:bg-gray-300 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 px-4 py-2 bg-teal-900 text-white rounded-lg font-medium hover:bg-teal-800 transition"
+                    >
+                      Add Shift
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           {/* Main Content Grid */}
           <div className="grid grid-cols-3 gap-8">
@@ -41,35 +480,37 @@ export default function Dashboard() {
               {/* Day Selector */}
               <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
                 <div className="grid grid-cols-7 gap-3">
-                  {[
-                    "MON 23",
-                    "TUE 24",
-                    "WED 25",
-                    "THU 26",
-                    "FRI 27",
-                    "SAT 28",
-                    "SUN 29",
-                  ].map((day, index) => (
-                    <button
-                      key={day}
-                      className={`p-4 rounded-xl text-center font-bold transition-all ${
-                        index === 2
-                          ? "bg-white border-2 border-teal-500 text-teal-700"
-                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      }`}
-                    >
-                      <div className="text-xs text-gray-600 font-semibold mb-1 uppercase">
-                        {day.split(" ")[0]}
-                      </div>
-                      <div className="text-xl">{day.split(" ")[1]}</div>
-                    </button>
+                  {days.map((day, index) => (
+                    <div key={day} className="flex flex-col gap-2">
+                      <button
+                        onClick={() => setActiveDay(day)}
+                        className={`p-4 rounded-xl text-center font-bold transition-all flex-1 ${
+                          activeDay === day
+                            ? "bg-white border-2 border-teal-500 text-teal-700"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        <div className="text-xs text-gray-600 font-semibold mb-1 uppercase">
+                          {day.split(" ")[0]}
+                        </div>
+                        <div className="text-xl">{day.split(" ")[1]}</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedDay(day);
+                          setIsShiftModalOpen(true);
+                        }}
+                        className="px-2 py-1 bg-teal-100 text-teal-700 rounded-lg text-xs font-semibold hover:bg-teal-200 transition"
+                      >
+                        + Shift
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
 
               {/* Shift Blocks */}
               <div className="space-y-4">
-                {/* Morning Bar */}
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
                   <div className="flex items-start justify-between">
                     <div>
@@ -102,7 +543,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Main Dining */}
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
                   <div className="flex items-start justify-between">
                     <div>
@@ -138,7 +578,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Patio Service */}
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">
@@ -167,8 +606,72 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              <div className="space-y-4">
+                {selectedSchedule?.shifts?.map((shift: any) => {
+                  const assignment = shift.shiftAssignments?.[0]; // first assigned staff
+                  const staff = assignment?.user;
+
+                  return (
+                    <div
+                      key={shift.id}
+                      className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {shift.requiredSkill?.name || "Shift"}
+                          </h3>
+
+                          <p className="text-sm text-gray-600 mt-1">
+                            {formatTime(shift.startTime)} -{" "}
+                            {formatTime(shift.endTime)}
+                          </p>
+
+                          <p className="text-xs text-gray-500 uppercase tracking-wider mt-2">
+                            {shift.requiredSkill?.name?.toUpperCase()}
+                          </p>
+                        </div>
+
+                        {shift.isPremium && (
+                          <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded">
+                            PREMIUM
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Staff */}
+                      {staff && (
+                        <div className="mt-4 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${staff.firstName}`}
+                              alt={staff.firstName}
+                              className="w-10 h-10 rounded-full"
+                            />
+
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                {staff.firstName} {staff.lastName}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {shift.requiredHeadcount || 1} Required Staff
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Status badge */}
+                          <div className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded inline-block">
+                            {assignment?.status || "UNASSIGNED"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
               {/* Live On-Duty Section */}
-              <div className="bg-gray-100 rounded-lg p-6 border border-gray-200">
+              {/* <div className="bg-gray-100 rounded-lg p-6 border border-gray-200">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">●</span>
@@ -204,7 +707,7 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {/* Right Column - Metrics and Summary */}
