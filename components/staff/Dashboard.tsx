@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useShifts } from "./context/ShiftContext";
+import { API } from "@/lib/api";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export default function StaffDashboard() {
-  const { shifts } = useShifts();
+  const { shifts, fetchStaff, staff, swamp, refetchSwamp } = useShifts();
+  const [selectedStaffId, setSelectedStaffId] = useState("");
   console.log("see the shifts", shifts);
+  console.log("see the  staff fetched", staff);
+  console.log("see the swamp request", swamp);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [modalData, setModalData] = useState({
     shiftId: "",
@@ -28,6 +33,8 @@ export default function StaffDashboard() {
     });
     setActiveModal("swap");
   };
+
+  console.log("see the modalData", modalData);
 
   const openDropModal = (shiftId: string, date: string, time: string) => {
     setModalData({ shiftId, shiftDate: date, shiftTime: time, shiftRole: "" });
@@ -70,6 +77,62 @@ export default function StaffDashboard() {
       hour: "2-digit",
       minute: "2-digit",
     })}`;
+  };
+  useEffect(() => {
+    if (!modalData.shiftId || activeModal !== "swap") return;
+
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+    //  1. find shift from existing shifts list
+    const selectedShift = shifts?.find(
+      (item: any) => item.shift?.id === modalData.shiftId,
+    )?.shift;
+
+    if (!selectedShift) return;
+
+    //  2. extract required values from shift
+    const startISO = new Date(selectedShift.startTime).toISOString();
+    const endISO = new Date(selectedShift.endTime).toISOString();
+    const skillId = selectedShift.requiredSkill?.id;
+
+    try {
+      fetchStaff(user.locationIds?.[0], skillId, startISO, endISO);
+    } catch (error) {
+      console.log(error);
+    }
+  }, [modalData.shiftId, activeModal, shifts]);
+
+  const handlSwamp = async () => {
+    try {
+      if (!modalData.shiftId) return;
+
+      if (!selectedStaffId) {
+        alert("Please select a staff member");
+        return;
+      }
+
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+      const payload = {
+        shiftId: modalData.shiftId,
+        type: "SWAP",
+        targetUserId: selectedStaffId,
+      };
+
+      const res = await API.post(`/swaps/${user.sub}`, payload);
+
+      console.log("swap created:", res);
+
+      // reset state
+      setSelectedStaffId("");
+      closeModal();
+
+      // optional: refresh swaps / shifts
+      // fetchShifts();
+    } catch (error: any) {
+      console.error(error);
+      alert(error?.message || "Failed to create swap request");
+    }
   };
 
   return (
@@ -474,7 +537,7 @@ export default function StaffDashboard() {
               </p>
             </div>
             <div className="mb-5">
-              <div className="bg-gray-100 p-3 rounded text-sm mb-3">
+              <div className="bg-gray-700 p-3 rounded text-sm mb-3">
                 <p className="mb-1">
                   <strong>Your Shift:</strong> {modalData.shiftDate}
                 </p>
@@ -486,7 +549,7 @@ export default function StaffDashboard() {
                 </p>
               </div>
 
-              <div className="mb-4">
+              {/* <div className="mb-4">
                 <label
                   htmlFor="swapPartner"
                   className="block text-sm font-semibold text-gray-900 mb-2"
@@ -495,13 +558,45 @@ export default function StaffDashboard() {
                 </label>
                 <select
                   id="swapPartner"
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-900"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg 
+             text-gray-900 bg-white
+             focus:outline-none focus:ring-2 focus:ring-teal-500"
                 >
                   <option value="">-- Choose a team member --</option>
                   <option value="jessica">Jessica K. (Server)</option>
                   <option value="marcus">Marcus J. (Bartender)</option>
                   <option value="sarah">Sarah M. (Server)</option>
                   <option value="tom">Tom R. (Server)</option>
+                </select>
+              </div> */}
+
+              <div className="mb-4">
+                <label
+                  htmlFor="swapPartner"
+                  className="block text-sm font-semibold text-gray-900 mb-2"
+                >
+                  Select Team Member to Swap With
+                </label>
+
+                <select
+                  id="swapPartner"
+                  value={selectedStaffId}
+                  onChange={(e) => setSelectedStaffId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg 
+    text-gray-900 bg-white
+    focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">-- Choose a team member --</option>
+
+                  {staff?.length === 0 && (
+                    <option disabled>No available staff</option>
+                  )}
+
+                  {staff?.map((member: any) => (
+                    <option key={member.id} value={member.id}>
+                      {member.firstName + " " + member.lastName}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -518,7 +613,10 @@ export default function StaffDashboard() {
               >
                 Cancel
               </button>
-              <button className="py-2.5 px-5 bg-blue-900 text-white rounded text-sm font-semibold hover:bg-blue-800 transition-colors">
+              <button
+                className="py-2.5 px-5 bg-blue-900 text-white rounded text-sm font-semibold hover:bg-blue-800 transition-colors"
+                onClick={handlSwamp}
+              >
                 Request Swap
               </button>
             </div>

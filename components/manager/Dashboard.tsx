@@ -4,6 +4,8 @@ import { Sidebar } from "./Sidebar";
 import { TopNav } from "./TopNav";
 import { useSchedule } from "./context/ScheduleContext";
 import { API } from "@/lib/api";
+// import { fromZonedTime, formatInTimeZone } from "date-fns-tz";
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export default function DashboardPage() {
   const {
@@ -17,7 +19,14 @@ export default function DashboardPage() {
     // fetchShifts,
   } = useSchedule();
   console.log("see the selectedSchedule", selectedSchedule);
-
+  // const timeZone1 = "America/Los_Angeles";
+  // const timeZone2 = "America/New_York";
+  // const utcDate = fromZonedTime(
+  //   "2026-04-01T09:00", // user input
+  //   "Africa/Addis_Ababa", // location timezone
+  // );
+  // console.log("see the exact UTC", utcDate);
+  // console.log("see the string>>>>>>>>>>>>>>>>>", utcDate.toISOString());
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
@@ -32,6 +41,8 @@ export default function DashboardPage() {
   const [shiftSkill, setShiftSkill] = useState("");
   const [headCount, setHeadCount] = useState("");
 
+  // const readableDate = new Date(shiftStartDate).toLocaleString();
+  console.log("see the shiftStartDate", shiftStartDate);
   // const getWeekDays = () => {
   //   if (!selectedSchedule) return [];
 
@@ -84,7 +95,7 @@ export default function DashboardPage() {
 
     try {
       await API.post(`/schedules`, {
-        weekStart: new Date(`${scheduleDate}T00:00:00Z`).toISOString(),
+        weekStart: new Date(`${scheduleDate}`).toISOString(),
         locationId: manager.locationIds[0],
         createdBy: manager.sub,
       });
@@ -128,8 +139,8 @@ export default function DashboardPage() {
         locationId: manager.locationIds[0],
         requiredSkillId: shiftSkill, // send skill ID, not name
         assignedUserIds: selectedStaff,
-        startTime: new Date(`${shiftStartDate}T00:00:00Z`).toISOString(),
-        endTime: new Date(`${shiftEndDate}T00:00:00Z`).toISOString(),
+        startTime: new Date(shiftStartDate).toISOString(),
+        endTime: new Date(shiftEndDate).toISOString(),
         requiredHeadcount: Number(headCount),
         createdBy: manager.sub,
         isPremium: isPremium,
@@ -175,11 +186,16 @@ export default function DashboardPage() {
     console.log("see the shiftSkill", shiftSkill);
     console.log("see the  manager.locationIds[0]", manager.locationIds[0]);
     try {
+      // Manually add the Zulu (Z) suffix to the local string
+      // const formattedStart = `${shiftStartDate}:00.000Z`;
+      // const formattedEnd = `${shiftEndDate}:00.000Z`;
       fetchStaff(
         manager.locationIds[0],
         shiftSkill,
         new Date(shiftStartDate).toISOString(),
+        // formattedStart,
         new Date(shiftEndDate).toISOString(),
+        // formattedEnd,
       );
     } catch (error) {
       console.log("see the error", error);
@@ -326,7 +342,8 @@ export default function DashboardPage() {
                       Start Date & Time
                     </label>
                     <input
-                      type="date"
+                      // type="date"
+                      type="datetime-local"
                       id="shiftStartDate"
                       value={shiftStartDate}
                       onChange={(e) => setShiftStartDate(e.target.value)}
@@ -346,7 +363,8 @@ export default function DashboardPage() {
                       End Date & Time
                     </label>
                     <input
-                      type="date"
+                      // type="date"
+                      type="datetime-local"
                       id="shiftEndDate"
                       value={shiftEndDate}
                       onChange={(e) => setShiftEndDate(e.target.value)}

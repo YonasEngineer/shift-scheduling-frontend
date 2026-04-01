@@ -82,6 +82,8 @@ export const ScheduleProvider = ({ children }: any) => {
           shiftEnd,
         },
       });
+      console.log("see the shiftStart ", shiftStart);
+      console.log("see the shiftEnd ", shiftEnd);
 
       console.log("see the staff fetched", res.data);
       setStaff(res.data);

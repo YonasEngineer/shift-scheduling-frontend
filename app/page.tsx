@@ -45,10 +45,7 @@ export default function LoginPage() {
       // alert("Welcome back");
     } catch (error: unknown) {
       console.error("Login error:", error);
-      alert(
-        error.response?.data?.message ||
-          "Login failed. Check your credentials.",
-      );
+      alert("Login failed. Check your credentials.");
     }
   };
 
