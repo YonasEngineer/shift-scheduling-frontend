@@ -135,6 +135,32 @@ export default function StaffDashboard() {
     }
   };
 
+  const handleAccept = async (swapId: string) => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+      // We send the request to the backend to process the swap
+      // The backend should handle the transaction:
+      // 1. Update SwapRequest status to ACCEPTED
+      // 2. Reassign the ShiftAssignment from requester to target
+      const res = await API.patch(`/swaps/${swapId}`, {
+        userId: user.sub, // The current user accepting the swap
+      });
+
+      console.log("Swap accepted successfully:", res);
+      alert("Shift swap accepted! Your schedule has been updated.");
+
+      // Refresh the data to reflect changes in the UI
+      refetchSwamp();
+      // If you have a fetchShifts function in your context, call it here too
+    } catch (error: any) {
+      console.error("Error accepting swap:", error);
+      alert(
+        error?.response?.data?.message || "Failed to accept the swap request.",
+      );
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* Left Sidebar */}
@@ -344,7 +370,7 @@ export default function StaffDashboard() {
         </section>
 
         {/* Open Shifts Board */}
-        <section className="mb-10">
+        {/* <section className="mb-10">
           <h3 className="text-lg font-semibold text-gray-900 mb-5">
             🎯 Open Shifts Board
             <span className="ml-3 inline-block bg-teal-900 text-white px-2 py-1 rounded text-xs font-semibold">
@@ -352,7 +378,6 @@ export default function StaffDashboard() {
             </span>
           </h3>
           <div className="space-y-3">
-            {/* Open Shift 1 */}
             <div className="bg-white border border-gray-200 rounded-lg p-5 flex justify-between items-center">
               <div>
                 <p className="text-xs text-gray-500 uppercase font-semibold mb-2">
@@ -373,7 +398,6 @@ export default function StaffDashboard() {
               </button>
             </div>
 
-            {/* Open Shift 2 */}
             <div className="bg-white border border-gray-200 rounded-lg p-5 flex justify-between items-center">
               <div>
                 <p className="text-xs text-gray-500 uppercase font-semibold mb-2">
@@ -394,7 +418,6 @@ export default function StaffDashboard() {
               </button>
             </div>
 
-            {/* Open Shift 3 */}
             <div className="bg-white border border-gray-200 rounded-lg p-5 flex justify-between items-center">
               <div>
                 <p className="text-xs text-gray-500 uppercase font-semibold mb-2">
@@ -413,6 +436,107 @@ export default function StaffDashboard() {
               >
                 Claim Shift
               </button>
+            </div>
+          </div>
+        </section> */}
+
+        {/* Open Shifts Board (SWAP REQUESTS) */}
+        <section className="mb-10">
+          <h3 className="text-lg font-semibold text-gray-900 mb-5">
+            🔁 Swap Requests Board
+          </h3>
+
+          <div className="space-y-3">
+            {swamp?.length === 0 && (
+              <p className="text-sm text-gray-500">
+                No swap requests available
+              </p>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {swamp?.map((req: any) => {
+                const shift = req.shift;
+                const requester = req.requester;
+                const target = req.targetUser;
+
+                return (
+                  <div
+                    key={req.id}
+                    className="bg-white border border-gray-200 rounded-lg p-5 flex flex-col justify-between"
+                  >
+                    {/* TOP CONTENT */}
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase font-semibold mb-2">
+                        {new Date(shift.startTime).toLocaleDateString("en-US", {
+                          weekday: "short",
+                          day: "2-digit",
+                        })}
+                      </p>
+
+                      <h4 className="text-base font-semibold text-gray-900">
+                        {shift.requiredSkill?.name} Shift Swap
+                      </h4>
+
+                      <p className="text-sm text-gray-600 mt-1">
+                        {new Date(shift.startTime).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}{" "}
+                        -{" "}
+                        {new Date(shift.endTime).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+
+                      <p className="text-xs text-gray-500 mt-3">
+                        Requested by:{" "}
+                        <span className="font-semibold text-gray-700">
+                          {requester?.firstName} {requester?.lastName}
+                        </span>
+                      </p>
+
+                      <p className="text-xs text-gray-500">
+                        Target:{" "}
+                        <span className="font-semibold text-gray-700">
+                          {target?.firstName} {target?.lastName}
+                        </span>
+                      </p>
+
+                      <p className="text-xs text-gray-500 mt-2">
+                        Status:{" "}
+                        <span
+                          className={`font-semibold ${
+                            req.status === "PENDING"
+                              ? "text-yellow-600"
+                              : req.status === "APPROVED"
+                                ? "text-green-600"
+                                : "text-red-600"
+                          }`}
+                        >
+                          {req.status}
+                        </span>
+                      </p>
+                    </div>
+
+                    {/* BOTTOM ACTIONS */}
+                    <div className="mt-5 pt-4 border-t border-gray-200 flex gap-2">
+                      <button
+                        onClick={() => handleAccept(req.id)}
+                        className="flex-1 py-2 bg-teal-900 text-white rounded text-sm font-semibold hover:bg-green-700 transition-colors"
+                      >
+                        Accept
+                      </button>
+
+                      <button
+                        onClick={() => console.log("reject swap", req.id)}
+                        className="flex-1 py-2 bg-red-400 text-white rounded text-sm font-semibold hover:bg-red-700 transition-colors"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
