@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { API } from "@/lib/api";
 import { logIn } from "@/endpoints/endpoints";
 export default function LoginPage() {
-  const [email, setEmail] = useState("manager@coastaleats.com");
-  const [password, setPassword] = useState("••••••••");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberStation, setRememberStation] = useState(false);
   const [accessMode, setAccessMode] = useState("manager");
@@ -128,7 +128,7 @@ export default function LoginPage() {
               Welcome Back
             </h2>
             <p className="text-gray-600">
-              Sign in to Coastal Eats Manager Portal
+              Sign in to Coastal Eats shift scheduling platform Portal
             </p>
           </div>
 
@@ -156,7 +156,7 @@ export default function LoginPage() {
                   id="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="manager@coastaleats.com"
+                  // placeholder="manager@coastaleats.com"
                   className="w-full pl-12 pr-4 py-3 bg-gray-200 text-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition"
                 />
               </div>
@@ -195,7 +195,7 @@ export default function LoginPage() {
                   id="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  // placeholder="••••••••"
                   className="w-full pl-12 pr-12 py-3 bg-gray-200 text-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition"
                 />
                 <button
@@ -277,52 +277,6 @@ export default function LoginPage() {
           <div className="my-8 border-t border-gray-300"></div>
 
           {/* Access Mode Selection */}
-          <div>
-            <p className="text-sm font-semibold text-gray-600 mb-4 tracking-wider text-center">
-              SELECT ACCESS MODE
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setAccessMode("manager")}
-                className={`flex-1 py-3 px-4 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
-                  accessMode === "manager"
-                    ? "bg-gray-200 text-slate-900"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-150"
-                }`}
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                  <path
-                    fillRule="evenodd"
-                    d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Manager
-              </button>
-              <button
-                onClick={() => setAccessMode("staff")}
-                className={`flex-1 py-3 px-4 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
-                  accessMode === "staff"
-                    ? "bg-gray-200 text-slate-900"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-150"
-                }`}
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-                </svg>
-                Staff
-              </button>
-            </div>
-          </div>
 
           {/* Footer Link */}
           <div className="mt-8 text-center text-sm text-gray-600">

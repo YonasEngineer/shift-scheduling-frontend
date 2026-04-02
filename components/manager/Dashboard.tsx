@@ -118,9 +118,9 @@ export default function DashboardPage() {
 
   console.log("see the selected day", selectedDay);
   console.log("see the selected staff", selectedStaff);
-  const manager = JSON.parse(localStorage.getItem("user") || "{}");
+  // const manager = JSON.parse(localStorage.getItem("user") || "{}");
 
-  useEffect(() => {}, [manager]);
+  // useEffect(() => {}, [manager]);
 
   const handleAddShift = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -528,7 +528,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Shift Blocks */}
-              <div className="space-y-4">
+              {/* <div className="space-y-4">
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
                   <div className="flex items-start justify-between">
                     <div>
@@ -622,7 +622,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               <div className="space-y-4">
                 {selectedSchedule?.shifts?.map((shift: any) => {
