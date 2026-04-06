@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useShifts } from "./context/ShiftContext";
 import { API } from "@/lib/api";
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export default function StaffDashboard() {
   const { shifts, fetchStaff, staff, swamp, refetchSwamp } = useShifts();
   const [selectedStaffId, setSelectedStaffId] = useState("");
   console.log("see the shifts", shifts);
-  console.log("see the  staff fetched", staff);
+  // console.log("see the  staff fetched", staff);
   console.log("see the swamp request", swamp);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [modalData, setModalData] = useState({
@@ -18,6 +19,8 @@ export default function StaffDashboard() {
     shiftTime: "",
     shiftRole: "",
   });
+
+  // socket.ts (create once)
 
   const openSwapModal = (
     shiftId: string,
@@ -34,7 +37,7 @@ export default function StaffDashboard() {
     setActiveModal("swap");
   };
 
-  console.log("see the modalData", modalData);
+  // console.log("see the modalData", modalData);
 
   const openDropModal = (shiftId: string, date: string, time: string) => {
     setModalData({ shiftId, shiftDate: date, shiftTime: time, shiftRole: "" });
@@ -66,7 +69,7 @@ export default function StaffDashboard() {
     });
   };
 
-  const formatTime = (start: string, end: string) => {
+  const formatShiftTime = (start: string, end: string) => {
     const s = new Date(start);
     const e = new Date(end);
 
@@ -81,7 +84,7 @@ export default function StaffDashboard() {
   useEffect(() => {
     if (!modalData.shiftId || activeModal !== "swap") return;
 
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    // const user = JSON.parse(localStorage.getItem("user") || "{}");
 
     //  1. find shift from existing shifts list
     const selectedShift = shifts?.find(
@@ -91,12 +94,13 @@ export default function StaffDashboard() {
     if (!selectedShift) return;
 
     //  2. extract required values from shift
-    const startISO = new Date(selectedShift.startTime).toISOString();
-    const endISO = new Date(selectedShift.endTime).toISOString();
-    const skillId = selectedShift.requiredSkill?.id;
+    const startISO = selectedShift.startTime;
+    const endISO = selectedShift.endTime;
 
+    const skillId = selectedShift.requiredSkill?.id;
+    // console.log("see the selectedShift", selectedShift);
     try {
-      fetchStaff(user.locationIds?.[0], skillId, startISO, endISO);
+      fetchStaff(selectedShift?.location?.id, skillId, startISO, endISO);
     } catch (error) {
       console.log(error);
     }
@@ -143,7 +147,7 @@ export default function StaffDashboard() {
       // The backend should handle the transaction:
       // 1. Update SwapRequest status to ACCEPTED
       // 2. Reassign the ShiftAssignment from requester to target
-      const res = await API.patch(`/swaps/${swapId}`, {
+      const res = await API.patch(`/swaps/${swapId}/accept`, {
         userId: user.sub, // The current user accepting the swap
       });
 
@@ -161,6 +165,24 @@ export default function StaffDashboard() {
     }
   };
 
+  const handleReject = async (swapId: string) => {
+    try {
+      await API.patch(`/swaps/${swapId}/reject/staff`);
+      alert("Swap request rejected successfully");
+      await refetchSwamp();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reject the swap request.");
+    }
+  };
+
+  const formatTime = (dateStr: string, timeZone: string) => {
+    return new Date(dateStr).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone, // this is the key
+    });
+  };
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* Left Sidebar */}
@@ -307,7 +329,25 @@ export default function StaffDashboard() {
 
             {shifts?.map((item: any) => {
               const shift = item.shift;
+              const swapRequests = shift.swapRequests || [];
 
+              // 1. Final completed swap
+              const isCompleted = swapRequests.some(
+                (req: any) =>
+                  req.status === "ACCEPTED" && req.managerStatus === "APPROVED",
+              );
+
+              // 2. Ongoing swap (accepted but waiting manager)
+              const isInProgress = swapRequests.some(
+                (req: any) =>
+                  req.status === "ACCEPTED" && req.managerStatus === "PENDING",
+              );
+
+              // 3. Max attempts
+              const isMaxReached = swapRequests.length >= 3;
+
+              // FINAL CONDITION
+              const isSwapLocked = isCompleted || isInProgress || isMaxReached;
               return (
                 <div
                   key={item.id}
@@ -324,45 +364,58 @@ export default function StaffDashboard() {
                       {new Date(shift.startTime).toLocaleDateString("en-US", {
                         weekday: "long",
                       })}
+                      {"  " + shift?.location?.name}
                     </p>
 
-                    <p className="text-sm text-gray-600 mb-4">
+                    {/* <p className="text-sm text-gray-600 mb-4">
                       {formatDate(shift.startTime)}
-                    </p>
+                    </p> */}
+
+                    {/* <p className="text-lg font-bold text-gray-900 mb-4">
+                      {formatTime(shift.startTime, shift.endTime)}
+                    </p> */}
 
                     <p className="text-lg font-bold text-gray-900 mb-4">
-                      {formatTime(shift.startTime, shift.endTime)}
+                      {formatTime(shift.startTime, shift.location?.timezone)} -{" "}
+                      {formatTime(shift.endTime, shift.location?.timezone)}
                     </p>
+
+                    {/* Status badge */}
+                    <div className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded inline-block">
+                      {shifts?.[0]?.status || "UNASSIGNED"}
+                    </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() =>
-                        openSwapModal(
-                          shift.id,
-                          formatDate(shift.startTime),
-                          formatTime(shift.startTime, shift.endTime),
-                          shift?.requiredSkill?.name,
-                        )
-                      }
-                      className="flex-1 py-2.5 px-4 bg-gray-200 text-gray-900 rounded text-sm font-semibold hover:bg-gray-300 transition-colors"
-                    >
-                      Request Swap
-                    </button>
+                  {!isSwapLocked && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          openSwapModal(
+                            shift.id,
+                            formatDate(shift.startTime),
+                            formatShiftTime(shift.startTime, shift.endTime),
+                            shift?.requiredSkill?.name,
+                          )
+                        }
+                        className="flex-1 py-2.5 px-4 bg-gray-200 text-gray-900 rounded text-sm font-semibold hover:bg-gray-300 transition-colors"
+                      >
+                        Request Swap
+                      </button>
 
-                    <button
-                      onClick={() =>
-                        openDropModal(
-                          shift.id,
-                          formatDate(shift.startTime),
-                          formatTime(shift.startTime, shift.endTime),
-                        )
-                      }
-                      className="flex-1 py-2.5 px-4 bg-gray-200 text-gray-900 rounded text-sm font-semibold hover:bg-gray-300 transition-colors"
-                    >
-                      Drop
-                    </button>
-                  </div>
+                      <button
+                        onClick={() =>
+                          openDropModal(
+                            shift.id,
+                            formatDate(shift.startTime),
+                            formatShiftTime(shift.startTime, shift.endTime),
+                          )
+                        }
+                        className="flex-1 py-2.5 px-4 bg-gray-200 text-gray-900 rounded text-sm font-semibold hover:bg-gray-300 transition-colors"
+                      >
+                        Drop
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -457,6 +510,7 @@ export default function StaffDashboard() {
                 const shift = req.shift;
                 const requester = req.requester;
                 const target = req.targetUser;
+                console.log("see the   swap shift", req);
 
                 return (
                   <div
@@ -501,39 +555,57 @@ export default function StaffDashboard() {
                           {target?.firstName} {target?.lastName}
                         </span>
                       </p>
-
-                      <p className="text-xs text-gray-500 mt-2">
-                        Status:{" "}
-                        <span
-                          className={`font-semibold ${
-                            req.status === "PENDING"
-                              ? "text-yellow-600"
-                              : req.status === "APPROVED"
-                                ? "text-green-600"
-                                : "text-red-600"
-                          }`}
-                        >
-                          {req.status}
-                        </span>
-                      </p>
+                      <div className="flex justify-between gap-3">
+                        <p className="text-xs text-gray-500 mt-2">
+                          Your Status:{" "}
+                          <span
+                            className={`font-semibold ${
+                              req.status === "PENDING"
+                                ? "text-yellow-600"
+                                : req.status === "ACCEPTED"
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                            }`}
+                          >
+                            {req.status}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Manager Status:{" "}
+                          <span
+                            className={`font-semibold ${
+                              req.managerStatus === "PENDING"
+                                ? "text-yellow-600"
+                                : req.managerStatus === "APPROVED"
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                            }`}
+                          >
+                            {req.managerStatus}
+                          </span>
+                        </p>
+                      </div>
                     </div>
 
                     {/* BOTTOM ACTIONS */}
-                    <div className="mt-5 pt-4 border-t border-gray-200 flex gap-2">
-                      <button
-                        onClick={() => handleAccept(req.id)}
-                        className="flex-1 py-2 bg-teal-900 text-white rounded text-sm font-semibold hover:bg-green-700 transition-colors"
-                      >
-                        Accept
-                      </button>
 
-                      <button
-                        onClick={() => console.log("reject swap", req.id)}
-                        className="flex-1 py-2 bg-red-400 text-white rounded text-sm font-semibold hover:bg-red-700 transition-colors"
-                      >
-                        Reject
-                      </button>
-                    </div>
+                    {req.status === "PENDING" && (
+                      <div className="mt-5 pt-4 border-t border-gray-200 flex gap-2">
+                        <button
+                          onClick={() => handleAccept(req.id)}
+                          className="flex-1 py-2 bg-teal-900 text-white rounded text-sm font-semibold hover:bg-green-700 transition-colors"
+                        >
+                          Accept
+                        </button>
+
+                        <button
+                          onClick={() => handleReject(req.id)}
+                          className="flex-1 py-2 bg-red-400 text-white rounded text-sm font-semibold hover:bg-red-700 transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

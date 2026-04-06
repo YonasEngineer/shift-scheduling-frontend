@@ -1,5 +1,8 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { API } from "@/lib/api"; // your axios instance
+
+import { socketConnection } from "@/lib/socket";
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const ShiftContext = createContext<any>(null);
@@ -11,6 +14,24 @@ export const ShiftProvider = ({ children }: any) => {
   const [swamp, setSwamp] = useState<any[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
 
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const userId = user.sub; // dynamic in real app
+    const socket = socketConnection(userId);
+    socket.on("connect", () => {
+      console.log("🔥 Connected to server:", socket.id);
+    });
+
+    socket.on("shift-created", (data) => {
+      console.log("✅ shift created  see the data:", data);
+      setShifts([data]);
+    });
+
+    return () => {
+      socket.off("swap-approved");
+    };
+  }, []);
+
   const fetchMyShifts = async () => {
     try {
       setLoading(true);
@@ -21,7 +42,7 @@ export const ShiftProvider = ({ children }: any) => {
 
       const res = await API.get(`/shifts/me/${user.sub}`);
       const data = res.data;
-
+      // console.log("see the user shift", res);
       setShifts(data);
     } catch (err) {
       console.error("Failed to fetch shifts:", err);

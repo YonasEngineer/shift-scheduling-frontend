@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { API } from "@/lib/api";
+import { socketConnection } from "@/lib/socket";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type ScheduleContextType = {
   schedules: any[];
@@ -11,6 +12,9 @@ type ScheduleContextType = {
   loading: boolean;
   loadingStaff: boolean;
   staff: any;
+  swapNeedingApproval: any;
+  fetchSwapNeedingApproval: any;
+  location: any;
   skills: any;
   // shifts: any;
   fetchSchedules: () => Promise<void>;
@@ -25,6 +29,26 @@ export const ScheduleProvider = ({ children }: any) => {
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
   const [skills, setSkills] = useState(null);
+  const [location, setLocation] = useState<any[]>([]);
+  const [swapNeedingApproval, setSwapNeedingApproval] = useState<any[]>([]);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const userId = user.sub; // dynamic in real app
+    const socket = socketConnection(userId);
+    socket.on("connect", () => {
+      console.log("🔥 Connected to server:", socket.id);
+    });
+
+    socket.on("swap-approved", (data) => {
+      console.log("✅ Swap approved:", data);
+    });
+
+    return () => {
+      socket.off("swap-approved");
+    };
+  }, []);
+
   // const [shifts, setShifts] = useState(null);
 
   const [loading, setLoading] = useState(true);
@@ -94,6 +118,42 @@ export const ScheduleProvider = ({ children }: any) => {
     }
   };
 
+  const fetchLocation = async () => {
+    try {
+      setLoading(true);
+      const manager = JSON.parse(localStorage.getItem("user") || "{}");
+
+      if (!manager?.sub) return;
+      const res = await API.get(`/locations/user/${manager.sub}`);
+      const data = await res.data;
+      setLocation(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSwapNeedingApproval = async () => {
+    try {
+      setLoading(true);
+
+      if (!location?.[0]?.id) return;
+      const res = await API.get(`/swaps/needing/approval/${location?.[0]?.id}`);
+      console.log("see the  swapNeedingApproval", res);
+      const data = await res.data;
+      setSwapNeedingApproval(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSwapNeedingApproval();
+  }, [!location?.[0]?.id]);
+
   // const fetchShifts = async () => {
   //   try {
   //     setLoading(true);
@@ -111,6 +171,7 @@ export const ScheduleProvider = ({ children }: any) => {
   useEffect(() => {
     fetchSchedules();
     fetchSkill();
+    fetchLocation();
     // fetchShifts();
   }, []);
 
@@ -123,8 +184,11 @@ export const ScheduleProvider = ({ children }: any) => {
         skills,
         // shifts,
         // fetchShifts,
+        fetchSwapNeedingApproval,
         staff,
+        location,
         loadingStaff,
+        swapNeedingApproval,
         fetchStaff,
         fetchSchedules,
         setSelectedSchedule,

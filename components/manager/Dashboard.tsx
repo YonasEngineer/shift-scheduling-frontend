@@ -4,7 +4,7 @@ import { Sidebar } from "./Sidebar";
 import { TopNav } from "./TopNav";
 import { useSchedule } from "./context/ScheduleContext";
 import { API } from "@/lib/api";
-// import { fromZonedTime, formatInTimeZone } from "date-fns-tz";
+import { fromZonedTime } from "date-fns-tz";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export default function DashboardPage() {
@@ -12,13 +12,19 @@ export default function DashboardPage() {
     selectedSchedule,
     skills,
     // shifts,
-    loading,
+    // loading,
+    location,
     fetchSchedules,
+    swapNeedingApproval,
     staff,
     fetchStaff,
+    fetchSwapNeedingApproval,
     // fetchShifts,
   } = useSchedule();
   console.log("see the selectedSchedule", selectedSchedule);
+  console.log("see the swapNeedingApproval", swapNeedingApproval);
+
+  // console.log("see the location", location);
   // const timeZone1 = "America/Los_Angeles";
   // const timeZone2 = "America/New_York";
   // const utcDate = fromZonedTime(
@@ -42,7 +48,7 @@ export default function DashboardPage() {
   const [headCount, setHeadCount] = useState("");
 
   // const readableDate = new Date(shiftStartDate).toLocaleString();
-  console.log("see the shiftStartDate", shiftStartDate);
+  // console.log("see the shiftStartDate", shiftStartDate);
   // const getWeekDays = () => {
   //   if (!selectedSchedule) return [];
 
@@ -92,11 +98,14 @@ export default function DashboardPage() {
     e.preventDefault();
 
     const manager = JSON.parse(localStorage.getItem("user") || "{}");
-
+    const utcDate = fromZonedTime(
+      scheduleDate, // user input
+      location?.[0]?.timezone, // IMPORTANT
+    );
     try {
       await API.post(`/schedules`, {
-        weekStart: new Date(`${scheduleDate}`).toISOString(),
-        locationId: manager.locationIds[0],
+        weekStart: utcDate,
+        locationId: location?.[0]?.id,
         createdBy: manager.sub,
       });
 
@@ -116,12 +125,20 @@ export default function DashboardPage() {
     }
   };
 
-  console.log("see the selected day", selectedDay);
-  console.log("see the selected staff", selectedStaff);
+  // console.log("see the selected day", selectedDay);
+  // console.log("see the selected staff", selectedStaff);
   // const manager = JSON.parse(localStorage.getItem("user") || "{}");
 
   // useEffect(() => {}, [manager]);
+  // console.log("see the time zone", location?.[0]?.timezone);
+  const utcShiftSTart = fromZonedTime(shiftStartDate, location?.[0]?.timezone);
+  const utcShiftEnd = fromZonedTime(shiftEndDate, location?.[0]?.timezone);
 
+  // console.log("see the utcShiftSTart with out toIso", utcShiftSTart);
+  // console.log(
+  //   "see the utcShiftSTart>>>>>>>>>>>>",
+  //   utcShiftSTart?.toISOString(),
+  // );
   const handleAddShift = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -136,11 +153,11 @@ export default function DashboardPage() {
       const payload = {
         scheduleId: selectedSchedule.id,
         // day: selectedDay, // optional, or you can calculate exact date
-        locationId: manager.locationIds[0],
+        locationId: location?.[0]?.id,
         requiredSkillId: shiftSkill, // send skill ID, not name
         assignedUserIds: selectedStaff,
-        startTime: new Date(shiftStartDate).toISOString(),
-        endTime: new Date(shiftEndDate).toISOString(),
+        startTime: utcShiftSTart.toISOString(),
+        endTime: utcShiftEnd.toISOString(),
         requiredHeadcount: Number(headCount),
         createdBy: manager.sub,
         isPremium: isPremium,
@@ -182,19 +199,20 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!selectedSchedule?.location?.id || !shiftSkill) return;
 
-    const manager = JSON.parse(localStorage.getItem("user") || "{}");
+    // const manager = JSON.parse(localStorage.getItem("user") || "{}");
     console.log("see the shiftSkill", shiftSkill);
-    console.log("see the  manager.locationIds[0]", manager.locationIds[0]);
+    console.log("see the  manager.locationIds[0]", location?.[0]?.id);
     try {
       // Manually add the Zulu (Z) suffix to the local string
       // const formattedStart = `${shiftStartDate}:00.000Z`;
       // const formattedEnd = `${shiftEndDate}:00.000Z`;
       fetchStaff(
-        manager.locationIds[0],
+        location?.[0]?.id,
         shiftSkill,
-        new Date(shiftStartDate).toISOString(),
+        utcShiftSTart.toISOString(),
         // formattedStart,
-        new Date(shiftEndDate).toISOString(),
+        utcShiftEnd.toISOString(),
+
         // formattedEnd,
       );
     } catch (error) {
@@ -202,12 +220,47 @@ export default function DashboardPage() {
     }
   }, [shiftSkill, isShiftModalOpen]);
 
-  const formatTime = (dateStr: string) => {
+  const formatTime = (dateStr: string, timeZone: string) => {
     return new Date(dateStr).toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
+      timeZone, // this is the key
     });
   };
+
+  const handleApprove = async (swapId: string) => {
+    const manager = JSON.parse(localStorage.getItem("user") || "{}");
+    const managerId = manager.sub;
+
+    try {
+      await API.post(`/swaps/approve?swapId=${swapId}&managerId=${managerId}`);
+
+      // refresh data after approval
+      await fetchSchedules();
+      await fetchSwapNeedingApproval();
+    } catch (error: any) {
+      console.error(
+        "Error approving swap:",
+        error.response || error.message || error,
+      );
+    }
+  };
+
+  const handleReject = async (swapId: string) => {
+    try {
+      const manager = JSON.parse(localStorage.getItem("user") || "{}");
+      const managerId = manager.sub;
+      await API.patch(`/swaps/${swapId}/reject/manager`, {
+        managerId,
+      });
+      alert("Swap request rejected successfully");
+      await fetchSchedules();
+    } catch (err) {
+      alert("Failed to reject the swap request.");
+      console.error(err);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
@@ -527,6 +580,75 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {swapNeedingApproval?.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                  <h2 className="font-bold text-yellow-800 mb-4">
+                    Pending Approvals
+                  </h2>
+
+                  {swapNeedingApproval.map((swap: any) => (
+                    <div
+                      key={swap.id}
+                      className="border rounded-lg p-4 mb-4 bg-white shadow-sm flex flex-col justify-between"
+                    >
+                      {/* TOP CONTENT */}
+                      <div className="space-y-2">
+                        {/* Users */}
+                        <p className="text-sm font-semibold text-gray-700">
+                          {swap.requester.firstName} →{" "}
+                          {swap.targetUser.firstName}
+                        </p>
+
+                        {/* Swap Type + Status */}
+                        <div className="flex gap-2 text-xs">
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                            {swap.type}
+                          </span>
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded">
+                            {swap.status}
+                          </span>
+                        </div>
+
+                        {/* Shift Info */}
+                        <p className="text-xs text-gray-600">
+                          {formatTime(
+                            swap.shift.startTime,
+                            location?.[0]?.timezone,
+                          )}{" "}
+                          -{" "}
+                          {formatTime(
+                            swap.shift.endTime,
+                            location?.[0]?.timezone,
+                          )}
+                        </p>
+
+                        {/* Date */}
+                        <p className="text-xs text-gray-500">
+                          {new Date(swap.shift.startTime).toDateString()}
+                        </p>
+                      </div>
+
+                      {/* ACTION BUTTONS (BOTTOM RIGHT) */}
+                      <div className="flex justify-end gap-2 mt-4">
+                        <button
+                          onClick={() => handleApprove(swap.id)}
+                          className="px-4 py-1.5 bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                          Approve
+                        </button>
+
+                        <button
+                          onClick={() => handleReject(swap.id)}
+                          className="px-4 py-1.5 bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Shift Blocks */}
               {/* <div className="space-y-4">
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
@@ -626,7 +748,10 @@ export default function DashboardPage() {
 
               <div className="space-y-4">
                 {selectedSchedule?.shifts?.map((shift: any) => {
-                  const assignment = shift.shiftAssignments?.[0]; // first assigned staff
+                  const assignment =
+                    shift.shiftAssignments?.find(
+                      (a: any) => a.status === "ASSIGNED",
+                    ) || shift.shiftAssignments?.[0];
                   const staff = assignment?.user;
 
                   return (
@@ -642,8 +767,12 @@ export default function DashboardPage() {
                           </h3>
 
                           <p className="text-sm text-gray-600 mt-1">
-                            {formatTime(shift.startTime)} -{" "}
-                            {formatTime(shift.endTime)}
+                            {formatTime(
+                              shift.startTime,
+                              location?.[0]?.timezone,
+                            )}{" "}
+                            -{" "}
+                            {formatTime(shift.endTime, location?.[0]?.timezone)}
                           </p>
 
                           <p className="text-xs text-gray-500 uppercase tracking-wider mt-2">
